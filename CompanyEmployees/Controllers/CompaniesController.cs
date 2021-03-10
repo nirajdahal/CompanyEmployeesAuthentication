@@ -5,11 +5,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace CompanyEmployees.Controllers
 {
     [Route("api/companies")]
-    [Authorize]
+   
     [ApiController]
     public class CompaniesController : ControllerBase
     {
@@ -24,7 +25,7 @@ namespace CompanyEmployees.Controllers
             _mapper = mapper;
         }
 
-        //[Authorize]
+        [Authorize]
         [HttpGet]
         public IActionResult GetCompanies()
         {
@@ -43,6 +44,16 @@ namespace CompanyEmployees.Controllers
                 _logger.LogError($"Something went wrong in the {nameof(GetCompanies)} action {ex}");
                 return StatusCode(500, "Internal server error");
             }
+        }
+
+        [HttpGet("Privacy")]
+        [Authorize]
+        public IActionResult Privacy()
+        {
+            var claims = User.Claims
+                .Select(c => new { c.Type, c.Value })
+                .ToList();
+            return Ok(claims);
         }
     }
 }
