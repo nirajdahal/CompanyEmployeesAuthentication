@@ -41,7 +41,15 @@ namespace CompanyEmployees
             services.ConfigureRepositoryManager();
             services.AddAutoMapper(typeof(Startup));
             services.AddScoped<JwtHandler>();
-            services.AddIdentity<User, IdentityRole>()
+            services.AddIdentity<User, IdentityRole>(opt =>
+            {
+                opt.Password.RequiredLength = 7;
+                opt.Password.RequireDigit = false;
+                opt.User.RequireUniqueEmail = true;
+                opt.Lockout.AllowedForNewUsers = true;
+                opt.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(2);
+                opt.Lockout.MaxFailedAccessAttempts = 3;
+            })
             .AddEntityFrameworkStores<RepositoryContext>()
             .AddDefaultTokenProviders();
             services.Configure<DataProtectionTokenProviderOptions>(opt =>
