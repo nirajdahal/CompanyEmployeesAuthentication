@@ -18,11 +18,13 @@ namespace CompanyEmployees.JwtFeatures
         private readonly Microsoft.Extensions.Configuration.IConfiguration _configuration;
         private readonly IConfigurationSection _jwtSettings;
         private readonly UserManager<User> _userManager;
+        private readonly IConfigurationSection _goolgeSettings;
         public JwtHandler(Microsoft.Extensions.Configuration.IConfiguration configuration, UserManager<User> userManager)
         {
             _userManager = userManager;
             _configuration = configuration;
             _jwtSettings = _configuration.GetSection("JwtSettings");
+            _goolgeSettings = _configuration.GetSection("GoogleAuthSettings");
         }
 
         public SigningCredentials GetSigningCredentials()
