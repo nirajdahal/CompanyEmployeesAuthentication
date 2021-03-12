@@ -36,6 +36,12 @@ namespace CompanyEmployees.Controllers
             var user = await _userManager.FindByNameAsync(userForAuthentication.Email);
             if (user == null || !await _userManager.CheckPasswordAsync(user, userForAuthentication.Password))
                 return Unauthorized(new AuthResponseDto { ErrorMessage = "Invalid Authentication" });
+            if (user == null)
+                return BadRequest("Invalid Request");
+            if (!await _userManager.IsEmailConfirmedAsync(user))
+                return Unauthorized(new AuthResponseDto { ErrorMessage = "Email is not confirmed" });
+            if (!await _userManager.CheckPasswordAsync(user, userForAuthentication.Password))
+                return Unauthorized(new AuthResponseDto { ErrorMessage = "Invalid Authentication" });
             var signingCredentials = _jwtHandler.GetSigningCredentials();
             var claims = await _jwtHandler.GetClaims(user);
             var tokenOptions = _jwtHandler.GenerateTokenOptions(signingCredentials, claims);
@@ -57,6 +63,15 @@ namespace CompanyEmployees.Controllers
 
                 return BadRequest(new RegistrationResponseDto { Errors = errors });
             }
+            var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+            var param = new Dictionary<string, string>
+    {
+        {"token", token },
+        {"email", user.Email }
+    };
+            var callback = QueryHelpers.AddQueryString(userForRegistration.ClientURI, param);
+            var message = new Message(new string[] { "dahnee17@gmail.com" }, "Email Confirmation token", callback, null);
+            await _emailSender.SendEmailAsync(message);
             await _userManager.AddToRoleAsync(user, "Viewer");
             return StatusCode(201);
         }
@@ -99,5 +114,16 @@ namespace CompanyEmployees.Controllers
             return Ok();
         }
 
+        [HttpGet("EmailConfirmation")]
+        public async Task<IActionResult> EmailConfirmation([FromQuery] string email, [FromQuery] string token)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+                return BadRequest("Invalid Email Confirmation Request");
+            var confirmResult = await _userManager.ConfirmEmailAsync(user, token);
+            if (!confirmResult.Succeeded)
+                return BadRequest("Invalid Email Confirmation Request");
+            return Ok();
+        }
     }
 }
