@@ -88,7 +88,7 @@ namespace CompanyEmployees.Controllers
         {"email", user.Email }
     };
             var callback = QueryHelpers.AddQueryString(userForRegistration.ClientURI, param);
-            var message = new Message(new string[] { "dahnee17@gmail.com" }, "Email Confirmation token", callback, null);
+            var message = new Message(new string[] { user.Email }, "Email Confirmation token", callback, null);
             await _emailSender.SendEmailAsync(message);
             await _userManager.AddToRoleAsync(user, "Viewer");
             return StatusCode(201);
