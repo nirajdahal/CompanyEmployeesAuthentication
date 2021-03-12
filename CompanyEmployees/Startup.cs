@@ -1,6 +1,7 @@
 using AutoMapper;
 using CompanyEmployees.Extensions;
 using CompanyEmployees.JwtFeatures;
+using EmailService;
 using Entities;
 using Entities.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -13,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using NLog;
+using System;
 using System.IO;
 using System.Text;
 
@@ -31,6 +33,7 @@ namespace CompanyEmployees
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+
             services.ConfigureCors();
             services.ConfigureIISIntegration();
             services.ConfigureLoggerService();
@@ -39,7 +42,10 @@ namespace CompanyEmployees
             services.AddAutoMapper(typeof(Startup));
             services.AddScoped<JwtHandler>();
             services.AddIdentity<User, IdentityRole>()
-    .AddEntityFrameworkStores<RepositoryContext>();
+            .AddEntityFrameworkStores<RepositoryContext>()
+            .AddDefaultTokenProviders();
+            services.Configure<DataProtectionTokenProviderOptions>(opt =>
+                opt.TokenLifespan = TimeSpan.FromHours(2)); 
             var jwtSettings = Configuration.GetSection("JwtSettings");
             services.AddAuthentication(opt =>
             {
@@ -57,8 +63,14 @@ namespace CompanyEmployees
                     ValidAudience = jwtSettings.GetSection("validAudience").Value,
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.GetSection("securityKey").Value))
                 };
-             
+
             });
+
+            var emailConfig = Configuration
+    .GetSection("EmailConfiguration")
+    .Get<EmailConfiguration>();
+            services.AddSingleton(emailConfig);
+            services.AddScoped<IEmailSender, EmailSender>();
             services.AddControllers();
         }
 

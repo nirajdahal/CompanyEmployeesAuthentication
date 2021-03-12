@@ -47,7 +47,7 @@ namespace CompanyEmployees.Controllers
         }
 
         [HttpGet("Privacy")]
-        [Authorize]
+        [Authorize(Roles ="Administrator")]
         public IActionResult Privacy()
         {
             var claims = User.Claims
