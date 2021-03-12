@@ -40,6 +40,7 @@ namespace CompanyEmployees.Controllers
 
             if (!await _userManager.IsEmailConfirmedAsync(user))
                 return Unauthorized(new AuthResponseDto { ErrorMessage = "Email is not confirmed" });
+
             //you can check here if the account is locked out in case the user enters valid credentials after locking the account.
 
             if (!await _userManager.CheckPasswordAsync(user, userForAuthentication.Password))
@@ -58,14 +59,16 @@ namespace CompanyEmployees.Controllers
                 return Unauthorized(new AuthResponseDto { ErrorMessage = "Invalid Authentication" });
             }
 
-            var signingCredentials = _jwtHandler.GetSigningCredentials();
-            var claims = await _jwtHandler.GetClaims(user);
-            var tokenOptions = _jwtHandler.GenerateTokenOptions(signingCredentials, claims);
-            var token = new JwtSecurityTokenHandler().WriteToken(tokenOptions);
+            if (await _userManager.GetTwoFactorEnabledAsync(user))
+                return await GenerateOTPFor2StepVerification(user);
+
+            var token = await _jwtHandler.GenerateToken(user);
 
             await _userManager.ResetAccessFailedCountAsync(user);
+
             return Ok(new AuthResponseDto { IsAuthSuccessful = true, Token = token });
         }
+
 
         [HttpPost("Registration")]
         public async Task<IActionResult> RegisterUser([FromBody] UserForRegistrationDto userForRegistration)
@@ -74,6 +77,7 @@ namespace CompanyEmployees.Controllers
                 return BadRequest();
 
             var user = _mapper.Map<User>(userForRegistration);
+            user.TwoFactorEnabled = true;
             var result = await _userManager.CreateAsync(user, userForRegistration.Password);
             if (!result.Succeeded)
             {
@@ -87,13 +91,29 @@ namespace CompanyEmployees.Controllers
         {"token", token },
         {"email", user.Email }
     };
+            
             var callback = QueryHelpers.AddQueryString(userForRegistration.ClientURI, param);
             var message = new Message(new string[] { user.Email }, "Email Confirmation token", callback, null);
             await _emailSender.SendEmailAsync(message);
             await _userManager.AddToRoleAsync(user, "Viewer");
+            
             return StatusCode(201);
         }
 
+        private async Task<IActionResult> GenerateOTPFor2StepVerification(User user)
+        {
+            var providers = await _userManager.GetValidTwoFactorProvidersAsync(user);
+            if (!providers.Contains("Email"))
+            {
+                return Unauthorized(new AuthResponseDto { ErrorMessage = "Invalid 2-Step Verification Provider." });
+            }
+
+            var token = await _userManager.GenerateTwoFactorTokenAsync(user, "Email");
+            var message = new Message(new string[] { user.Email }, "Authentication token", token, null);
+            await _emailSender.SendEmailAsync(message);
+
+            return Ok(new AuthResponseDto { Is2StepVerificationRequired = true, Provider = "Email" });
+        }
 
         [HttpPost("ForgotPassword")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto forgotPasswordDto)
@@ -143,6 +163,24 @@ namespace CompanyEmployees.Controllers
             if (!confirmResult.Succeeded)
                 return BadRequest("Invalid Email Confirmation Request");
             return Ok();
+        }
+
+        [HttpPost("TwoStepVerification")]
+        public async Task<IActionResult> TwoStepVerification([FromBody] TwoFactorDto twoFactorDto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest();
+
+            var user = await _userManager.FindByEmailAsync(twoFactorDto.Email);
+            if (user == null)
+                return BadRequest("Invalid Request");
+
+            var validVerification = await _userManager.VerifyTwoFactorTokenAsync(user, twoFactorDto.Provider, twoFactorDto.Token);
+            if (!validVerification)
+                return BadRequest("Invalid Token Verification");
+
+            var token = await _jwtHandler.GenerateToken(user);
+            return Ok(new AuthResponseDto { IsAuthSuccessful = true, Token = token });
         }
     }
 }
